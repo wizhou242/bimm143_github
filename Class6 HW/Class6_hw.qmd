@@ -1,0 +1,196 @@
+---
+title: "Class6 HW"
+author: "Winnie Zhou (A16673200)"
+format: pdf
+---
+
+# A. Can you improve this analysis code?
+```{r}
+df <- data.frame(a=1:10, b=seq(200,400,length=10),c=11:20,d=NA)
+df$a <- (df$a - min(df$a)) / (max(df$a) - min(df$a))
+df$b <- (df$b - min(df$a)) / (max(df$b) - min(df$b))
+df$c <- (df$c - min(df$c)) / (max(df$c) - min(df$c))
+df$d <- (df$d - min(df$d)) / (max(df$a) - min(df$d))
+```
+
+## Copy and paste errors
+```{r}
+df <- data.frame(a=1:10, b=seq(200,400,length=10),c=11:20,d=NA)
+df$a <- (df$a - min(df$a)) / (max(df$a) - min(df$a))
+df$b <- (df$b - min(df$b)) / (max(df$b) - min(df$b))
+df$c <- (df$c - min(df$c)) / (max(df$c) - min(df$c))
+df$d <- (df$d - min(df$d)) / (max(df$d) - min(df$d))
+```
+
+## Use working snippet of the code 
+```{r}
+x <- (df$a - min(df$a)) / (max(df$a) - min(df$a))
+```
+
+## Reduce calculation duplication
+```{r}
+xmin <- min(df$a)
+x <- (df$a - xmin) / (max(df$a) - xmin)
+```
+
+## Use `range()` function
+```{r}
+rng <- range(df$a)
+x <- (df$a - rng[1]) / (rng[2] - rng[1])
+```
+
+## Turn it into a function with "name", "arguments" and "body"
+```{r}
+rescale <- function(x){rng <- range(df$a)
+(df$a - rng[1]) / (rng[2] - rng[1])}
+```
+
+## Test on small sample
+```{r}
+rescale(1:10)
+```
+
+## Test if function works for c(1,2,NA,3,10)
+```{r}
+rescale <- function(df, na.rm=TRUE){
+  rng <- range(df, na.rm=TRUE)
+(df - rng[1]) / (rng[2] - rng[1])}
+```
+
+```{r}
+rescale(c(1,2,NA,3,10))
+```
+
+# B. Can you improve this analysis code?
+```{r}
+library(bio3d)
+s1 <- read.pdb("4AKE") # kinase with drug
+s2 <- read.pdb("1AKE") # kinase no drug
+s3 <- read.pdb("1E4Y") # kinase with drug
+s1.chainA <- trim.pdb(s1, chain="A", elety="CA")
+s2.chainA <- trim.pdb(s2, chain="A", elety="CA")
+s3.chainA <- trim.pdb(s1, chain="A", elety="CA")
+s1.b <- s1.chainA$atom$b
+s2.b <- s2.chainA$atom$b
+s3.b <- s3.chainA$atom$b
+plotb3(s1.b, sse=s1.chainA, typ="l", ylab="Bfactor")
+plotb3(s2.b, sse=s2.chainA, typ="l", ylab="Bfactor")
+plotb3(s3.b, sse=s3.chainA, typ="l", ylab="Bfactor")
+```
+
+## Fixing errors: changes "s1" to "s3" in line 89
+
+```{r}
+s1 <- read.pdb("4AKE") # kinase with drug
+s2 <- read.pdb("1AKE") # kinase no drug
+s3 <- read.pdb("1E4Y") # kinase with drug
+s1.chainA <- trim.pdb(s1, chain="A", elety="CA")
+s2.chainA <- trim.pdb(s2, chain="A", elety="CA")
+s3.chainA <- trim.pdb(s3, chain="A", elety="CA")
+s1.b <- s1.chainA$atom$b
+s2.b <- s2.chainA$atom$b
+s3.b <- s3.chainA$atom$b
+plotb3(s1.b, sse=s1.chainA, typ="l", ylab="Bfactor")
+plotb3(s2.b, sse=s2.chainA, typ="l", ylab="Bfactor")
+plotb3(s3.b, sse=s3.chainA, typ="l", ylab="Bfactor")
+```
+
+> Q1. What type of object is returned from the read.pdb() function?
+
+## `read.pdb()`function allows R to read a Protein Data Bank file which contains biomolecular data.
+
+> Q2. What does the trim.pdb() function do?
+
+## `trim.pdb()` function removes data that is not necessary for our analyses or visualization of structures, such as specific chains.
+
+> Q3. What input parameter would turn off the marginal black and grey rectangles in the plots and what do they represent in this case?
+
+## The marginal black and grey rectangles in the plots represent the 'classic' form of secondary structure annotation. We can turn them off by specifying the arguments: top=FALSE, bottom=FALSE.
+```{r}
+plotb3(s1.b, sse=s1.chainA, typ="l", ylab="Bfactor", top=FALSE, bot=FALSE)
+plotb3(s2.b, sse=s2.chainA, typ="l", ylab="Bfactor", top=FALSE, bot=FALSE)
+plotb3(s3.b, sse=s3.chainA, typ="l", ylab="Bfactor", top=FALSE, bot=FALSE)
+```
+
+> Q4. What would be a better plot to compare across the different proteins?
+
+```{r}
+plotb3(s1.b, sse = s1.chainA, typ = "l", ylab = "Bfactor", top = FALSE, bot = FALSE, col = "blue", lty = 1)
+lines(s2.b, col = "red", lty = 2)
+lines(s3.b, col = "green", lty = 3)
+legend("topright", legend = c("Protein s1", "Protein s2", "Protein s3"), col = c("blue", "red", "green"), lty = c(1, 2, 3))
+```
+
+> Q5. Which proteins are more similar to each other in their B-factor trends? How could you quantify this?
+
+## We can quantify how similar the proteins are to each other by calculating the pearson correlaation coefficients. Protein s2 and s3 are the most similar to each other given they have the highest correlation: 0.5484932. We can also use hierarchial clustering. The proteins closest to each other, best not separated by a vertical branch, are more similar to each other.
+```{r}
+correlation_s1_s2 <- cor(s1.b, s2.b)
+correlation_s1_s3 <- cor(s1.b, s3.b)
+correlation_s2_s3 <- cor(s2.b, s3.b)
+correlation <- c(correlation_s1_s2, correlation_s1_s3, correlation_s2_s3)
+highest <- max(correlation)
+highest
+which.max(correlation)
+```
+
+```{r}
+hc <- hclust( dist( rbind(s1.b, s2.b, s3.b) ) )
+plot(hc)
+```
+
+> Q6. How would you generalize the original code above to work with any set of input protein structures?
+
+```{r}
+library(bio3d)
+s1 <- read.pdb("4AKE") # kinase with drug
+s2 <- read.pdb("1AKE") # kinase no drug
+s3 <- read.pdb("1E4Y") # kinase with drug
+s1.chainA <- trim.pdb(s1, chain="A", elety="CA")
+s2.chainA <- trim.pdb(s2, chain="A", elety="CA")
+s3.chainA <- trim.pdb(s3, chain="A", elety="CA")
+s1.b <- s1.chainA$atom$b
+s2.b <- s2.chainA$atom$b
+s3.b <- s3.chainA$atom$b
+plotb3(s1.b, sse=s1.chainA, typ="l", ylab="Bfactor")
+plotb3(s2.b, sse=s2.chainA, typ="l", ylab="Bfactor")
+plotb3(s3.b, sse=s3.chainA, typ="l", ylab="Bfactor")
+```
+
+## To make sure this works with any set of input protein structures, we can substitute the pdb files with a generic variable (x) into a working snippet.
+
+```{r}
+library(bio3d)
+# We first set generic variable "x" as "4AKE" as an example usage
+x <- "4AKE"
+
+# x can be replaced for any set of input structure and we assign the `read.pdb()` function to the variable s1. 
+structure <- read.pdb(x)
+                      
+# We assign another random variable that we named "s1.chainA" for the trimmed file
+s.chainA <- trim.pdb(structure, chain="A", elety="CA") 
+
+# We assign another random variable "s1.b" for extracting the B-factors
+s.b <- s.chainA$atom$b 
+
+# Here we create a plot of the B-factors
+plotb3(s.b, sse=s.chainA, typ="l", ylab="Bfactor") 
+```
+
+## Write a function that can read any pdb files, trim them, extract the specific B-factors and plot the B-factors. When we call the function `plot()`, we get a plot of the B-factors from the pdb file we input
+```{r}
+plot <- function(x){
+  x <- "4AKE"
+  structure <- read.pdb(x)
+  s.chainA <- trim.pdb(structure, chain="A", elety="CA")
+  s.b <- s.chainA$atom$b 
+  plotb3(s.b, sse=s.chainA, typ="l", ylab="Bfactor")}
+plot()
+```
+
+
+
+
+
+
+
