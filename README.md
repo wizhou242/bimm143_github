@@ -10,11 +10,11 @@ My classwork for [BIMM143 for Spring 2024](https://bioboot.github.io/bimm143_S24
 
 - **Class 8** [Something]()
 
-- **Class 9**
+- **Class 9** [Something]()
 
-- **Class 10**
+- **Class 10** [Something]()
 
-- **Class 11**
+- **Class 11** [Something]()
 
 - **Class 12** [Something]()
 
