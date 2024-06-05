@@ -8,7 +8,7 @@ My classwork for [BIMM143 for Spring 2024](https://bioboot.github.io/bimm143_S24
 
 - **Class 7** [Machine learning](https://github.com/wizhou242/bimm143_github/blob/main/Class7/Class7-Machine-learning.pdf)
 
-- **Class 8** [Something]()
+- **Class 8** [Breast Cancer Mini Project]()
 
 - **Class 9** [Something]()
 
