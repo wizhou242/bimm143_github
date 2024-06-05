@@ -1,0 +1,282 @@
+---
+title: "Class 12: Structural Bioinformatics (pt2. Focus on new AlphaFold2)"
+author: "Winnie Zhou (A16673200)"
+format: pdf
+---
+
+# Part 1 PCA of ADK
+
+We will  perform principal component analysis (PCA) on the complete collection of Adenylate kinase structures in the protein data-bank (PDB).
+
+Adenylate kinase (ADK) is a ubiquitous enzyme that functions to maintain the equilibrium between cytoplasmic nucleotides by catalyzing the reversible transfer of a phosphoryl group from ATP to AMP. 
+
+Here we analyze all currently available ADK structures in the PDB to reveal detailed features and mechanistic principles of these essential shape changing transitions.
+
+> Q10. Which of the packages above is found only on BioConductor and not CRAN? 
+
+"msa" is found only on BioConductor.
+
+> Q11. Which of the above packages is not found on BioConductor or CRAN?
+
+"Grantlab/bio3d-view" is not found on BioConductor or CRAN?
+
+> Q12. True or False? Functions from the devtools package can be used to install packages from GitHub and BitBucket? 
+
+True
+
+## Search and retrieve ADK structures
+
+```{r}
+library(bio3d)
+aa <- get.seq("1ake_A")
+aa
+```
+
+> Q13. How many amino acids are in this sequence, i.e. how long is this sequence?
+
+214
+
+
+Now we can use this sequence as a query to BLAST search the PDB to find similar sequences and structures.
+
+```{r}
+#b <- blast.pdb(aa)
+```
+
+We can now plot a summary of the search results
+```{r}
+#hits <- plot(b)
+#head(hits$pdb.id)
+```
+
+```{r}
+hits <- NULL
+hits$pdb.id <- c('1AKE_A','6S36_A','6RZE_A','3HPR_A','1E4V_A','5EJE_A','1E4Y_A','3X2S_A','6HAP_A','6HAM_A','4K46_A','3GMT_A','4PZL_A')
+files <- get.pdb(hits$pdb.id, path="pdbs", split=TRUE, gzip=TRUE)
+```
+
+## Align and superpose structures
+
+We can use `pdbaln()` function to align and superpose the identified PDB structures.
+```{r}
+library(bio3d)
+pdbs <- pdbaln(files, fit = TRUE, exefile="msa")
+```
+
+```{r}
+ids <- basename.pdb(pdbs$id)
+#plot(pdbs, labels=ids)
+```
+
+![Plot of PDB structures (figure margins were too large so here's an image of the created plot)](Screenshot.png)
+
+## Annotate collected PDB structures
+
+We can annotate the PDB files using `pdb.annotate()` function.
+
+```{r}
+anno <- pdb.annotate(ids)
+unique(anno$source)
+anno
+```
+
+## Principal component analysis
+
+We can now perform a PCA of the ADK structure data.
+
+```{r}
+pc.xray <- pca(pdbs)
+plot(pc.xray)
+```
+
+The `rmsd()` function calculates all pairwise RMSD values of the structural ensemble, facilitating clustering analysis based on the pairwise structural deviation.
+
+```{r}
+rd <- rmsd(pdbs)
+hc.rd <- hclust(dist(rd))
+grps.rd <- cutree(hc.rd, k=3)
+
+plot(pc.xray, 1:2, col="grey50", bg=grps.rd, pch=21, cex=1)
+```
+This plot shows a onformer plot – a low-dimensional representation of the conformational variability within the ensemble of PDB structures. Each dot on this plot represents one PDB structure.
+
+
+# Part 2 Alphafold Dimer structure prediction
+Section 8: Custom analysis of resulting models
+
+We can move our AlphaFold results directory into our RStudio project directory.
+
+```{r}
+results_dir <- "hivprdimer_23119"
+```
+
+```{r}
+pdb_files <- list.files(path=results_dir,
+                        pattern="*.pdb",
+                        full.names = TRUE)
+basename(pdb_files)
+```
+
+```{r}
+library(bio3d)
+```
+
+```{r}
+pdbs <- pdbaln(pdb_files, fit=TRUE, exefile="msa")
+pdbs
+```
+
+RMSD is a standard measure of structural distance between coordinate sets. We can use the `rmsd()` function to calculate the RMSD between all pairs models.
+
+```{r}
+rd <- rmsd(pdbs, fit=T)
+range(rd)
+```
+
+Let's draw a heatmap of these RMSD matrix values.
+```{r}
+library(pheatmap)
+
+colnames(rd) <- paste0("m",1:5)
+rownames(rd) <- paste0("m",1:5)
+pheatmap(rd)
+```
+The heatmap shows us that 1 and 2 are more similar to each other than to the other models. Models 4 and 5 are also similar to each other and more similar to model 3 than to models 1 and 2. 
+
+
+Let's plot the pLDDT values across all models. 
+
+```{r}
+pdb <- read.pdb("1hsg")
+```
+
+```{r}
+plotb3(pdbs$b[1,], typ="l", lwd=2, sse=pdb)
+points(pdbs$b[2,], typ="l", col="red")
+points(pdbs$b[3,], typ="l", col="blue")
+points(pdbs$b[4,], typ="l", col="darkgreen")
+points(pdbs$b[5,], typ="l", col="orange")
+abline(v=100, col="gray")
+```
+
+We can improve the superposition of our models.
+
+```{r}
+core <- core.find(pdbs)
+core.inds <- print(core, vol=0.5)
+xyz <- pdbfit(pdbs, core.inds, outpath="corefit_structures")
+```
+
+We can examine the RMSF (root mean square fluctuations) between positions of the structure. RMSF is an often used measure of conformational variance along the structure.
+
+```{r}
+rf <- rmsf(xyz)
+
+plotb3(rf, sse=pdb)
+abline(v=100, col="gray", ylab="RMSF")
+```
+
+The first chain is very similar across the different models.
+
+## Lets predict the alignment error for domains
+
+```{r}
+library(jsonlite)
+
+# Listing of all PAE JSON files
+pae_files <- list.files(path=results_dir,
+                        pattern=".*model.*\\.json",
+                        full.names = TRUE)
+```
+
+```{r}
+pae1 <- read_json(pae_files[1],simplifyVector = TRUE)
+pae5 <- read_json(pae_files[5],simplifyVector = TRUE)
+
+attributes(pae1)
+head (pae1$plddt)
+```
+
+The lower the PAE scores the better. Let's look at the max PAE scores of the first and fifth files.
+
+```{r}
+pae1$max_pae
+pae5$max_pae
+```
+Model 1 has a lower PAE score than 5, so it is a better model.
+
+We can plot the number of residues (N) by N PAE scores with ggplot or with functions from the Bio3D package:
+
+```{r}
+plot.dmat(pae1$pae, 
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)")
+```
+```{r}
+plot.dmat(pae5$pae, 
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)",
+          grid.col = "black",
+          zlim=c(0,30))
+```
+
+```{r}
+plot.dmat(pae1$pae, 
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)",
+          grid.col = "black",
+          zlim=c(0,30))
+```
+
+## Residue conservation from alignment file
+
+```{r}
+aln_file <- list.files(path=results_dir,
+                       pattern=".a3m$",
+                        full.names = TRUE)
+aln_file
+```
+
+```{r}
+aln <- read.fasta(aln_file[1], to.upper = TRUE)
+```
+
+> Q. How many sequences are in this alignment?
+
+```{r}
+dim(aln$ali)
+```
+
+We can use `conserv()` function to score residue conservation in the alignment.
+
+```{r}
+sim <- conserv(aln)
+plotb3(sim[1:99], sse=trim.pdb(pdb, chain="A"),
+       ylab="Conservation Score")
+```
+
+```{r}
+con <- consensus(aln, cutoff = 0.9)
+con$seq
+```
+
+With a high cutoff of 0.9, the conserved Active Site residues D25, T26, G27, A28 will stand out.
+
+
+We can visualize these sites by mapping this conservation score to the occupancy column of a PDB file for viewing in molecular viewer programs such as Mol*.
+
+```{r}
+m1.pdb <- read.pdb(pdb_files[1])
+occ <- vec2resno(c(sim[1:99], sim[1:99]), m1.pdb$atom$resno)
+write.pdb(m1.pdb, o=occ, file="m1_conserv.pdb")
+```
+
+![This is the best ranked dimer model.](M1_CONSERV.PDB.png)
+
+
+
+
+
+
+
+

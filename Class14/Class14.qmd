@@ -1,0 +1,255 @@
+---
+title: "Class 14: RNAseq Mini-Project"
+author: "Winnie Zhou (A16673200)"
+format: pdf
+---
+
+Here we run through a complete RNAseq analysis from counts to pathways and bilogical insights...
+
+## Data Import
+
+```{r}
+library(DESeq2)
+```
+```{r}
+metaFile <- "GSE37704_metadata.csv"
+countFile <- "GSE37704_featurecounts.csv"
+table(metaFile)
+```
+
+```{r}
+colData = read.csv(metaFile, row.names=1)
+head(colData)
+```
+
+```{r}
+countData = read.csv(countFile, row.names=1)
+head(countData)
+```
+
+We need the countData and colData files to match. To do this we need to remove that odd first column in countData (contData$length).
+
+```{r}
+countData <- as.matrix(countData[,-1])
+head(countData)
+```
+
+### Let's filter out the zero entries.
+
+```{r}
+keep <- rowSums(countData)>0
+countData <- countData[keep,]
+head(countData)
+```
+
+## Setup for DESeq
+
+```{r}
+library(DESeq2)
+
+dds <- DESeqDataSetFromMatrix(countData=countData,
+                             colData=colData,
+                             design=~condition)
+```
+
+
+## Running DESeq
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds)
+```
+```{r}
+head(res)
+```
+
+
+## Add gene annotation data (gene names etx.)
+
+
+```{r}
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+
+columns(org.Hs.eg.db)
+
+res$symbol = mapIds(org.Hs.eg.db,
+                    keys=rownames(res), 
+                    keytype="ENSEMBL",
+                    column="SYMBOL",
+                    multiVals="first")
+
+res$entrez = mapIds(org.Hs.eg.db,
+                    keys=rownames(res),
+                    keytype="ENSEMBL",
+                    column="ENTREZID",
+                    multiVals="first")
+
+res$name =   mapIds(org.Hs.eg.db,
+                    keys=row.names(res),
+                    keytype="ENSEMBL",
+                    column="GENENAME",
+                    multiVals="first")
+
+head(res, 10)
+```
+
+
+## Results visualization
+
+Let's make a volcano plot using log2fold change vs. -log adjusted p-value.
+
+```{r}
+plot( res$log2FoldChange, -log(res$padj) )
+```
+
+We can improve this plot.
+
+```{r}
+mycols <- rep("black", nrow(res))
+mycols[ abs(res$log2FoldChange) > 2 ] <- "magenta"
+inds <- (res$padj<0.01 ) & (abs(res$log2FoldChange) > 2 )
+mycols[ inds ] <- "green"
+
+plot(res$log2FoldChange, -log(res$padj), col= mycols, 
+     xlab="Log2(FoldChange)", 
+     ylab="-Log(P-value)")
+abline(v=-2, col="gray")
+abline(v=2, col="gray")
+abline(h=-log(0.05), col="gray")
+```
+
+A more customized data plot.
+```{r}
+library(EnhancedVolcano)
+```
+
+```{r}
+x <- as.data.frame(res)
+
+EnhancedVolcano(x,
+    lab = x$symbol,
+    x = 'log2FoldChange',
+    y = 'pvalue')
+```
+
+## Save our results
+
+```{r}
+res = res[order(res$pvalue),]
+write.csv(res, file="deseq_results.csv")
+```
+
+
+## Pathway analysis (KEGG, GO, Reactomei)
+
+### KEGG
+We will use the **gage** package for pathway analysis to get a list of enriched pathways. 
+
+```{r}
+library(pathview)
+library(gage)
+library(gageData)
+
+data(kegg.sets.hs)
+data(sigmet.idx.hs)
+
+# Focus on signaling and metabolic pathways only
+kegg.sets.hs = kegg.sets.hs[sigmet.idx.hs]
+
+# Examine the first 3 pathways
+head(kegg.sets.hs, 3)
+```
+
+The `gage()` function requires a named vector of fold changes.
+
+```{r}
+foldchanges = res$log2FoldChange
+names(foldchanges) = res$entrez
+head(foldchanges)
+```
+
+```{r}
+keggres = gage(foldchanges, gsets=kegg.sets.hs)
+```
+
+Let's look at 
+```{r}
+attributes(keggres)
+```
+
+Let's first look at the down pathway results
+```{r}
+head(keggres$less)
+```
+
+Now, we can use the `pathview()` function to make a pathway plot with our RNA-Seq expression data.
+
+```{r}
+pathview(gene.data=foldchanges, pathway.id="hsa04110")
+```
+
+![](hsa04110.pathview.png)
+
+Let's pull out the top 5 upregulated pathways and draw plots for each of these pathways
+
+```{r}
+keggrespathways <- rownames(keggres$greater)[1:5]
+# Extract the 8 character long IDs part of each string
+keggresids = substr(keggrespathways, start=1, stop=8)
+keggresids
+
+pathview(gene.data=foldchanges, pathway.id=keggresids, species="hsa")
+```
+
+![](hsa04640.pathview.png)
+
+![](hsa04630.pathview.png)
+
+![](hsa00140.pathview.png)
+
+![](hsa04142.pathview.png)
+
+![](hsa04330.pathview.png)
+
+### GO
+
+We will focus on Biological Process (BP) here.
+
+```{r}
+data(go.sets.hs)
+data(go.subs.hs)
+
+# Focus on Biological Process subset of GO
+gobpsets = go.sets.hs[go.subs.hs$BP]
+
+gobpres = gage(foldchanges, gsets=gobpsets, same.dir=TRUE)
+
+lapply(gobpres, head)
+```
+
+### Reactome
+
+We can use the list of significant genes from our differential expression to conduct an over-representation enrichment analysis and pathway-topology analysis with Reactome. 
+
+We first identify our list of significant genes by setting a 0.05 adjusted p value.
+
+```{r}
+significant_genes <- res[res$padj <= 0.05 & !is.na(res$padj), "symbol"]
+print(paste("Total number of significant genes:", length(significant_genes)))
+```
+
+```{r}
+write.table(significant_genes, file="significant_genes.txt", row.names=FALSE, col.names=FALSE, quote=FALSE)
+```
+
+We take our significant genes list and perform pathway analysis online at the Reactome website (https://reactome.org/PathwayBrowser/#TOOL=AT).
+
+The pathway with the most significant "Entities p-value" is the cell cycle, followed by the mitotic cell cycle.
+
+![This is a diagram of the cell cycle obtained from the Reactome website.](R-HSA-1640170.png)
+
+
+
+
+

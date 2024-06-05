@@ -1,0 +1,144 @@
+---
+title: "Class10: Structural Bioinformatics Part 1"
+author: Winnie Zhou (A16673200)
+format: pdf
+---
+
+## What is in the PDB database?
+
+The main repository of biomolecular structure info is the PDB < www.rcsb.org >.
+
+Let's see what this database contains:
+
+```{r}
+stats <- read.csv("pdb_stats.csv", row.names = 1)
+stats
+```
+
+
+> Q1: What percentage of structures in the PDB are solved by X-Ray and Electron Microscopy.
+
+```{r}
+#as.numeric(stats$X.ray)
+```
+We got to get rid of the commas. Can you find a function to get rid of the commas?
+
+```{r}
+x<-stats$X.ray
+sum(as.numeric(gsub(",","",x)))
+```
+
+I am going to turn this into a function and then use  `apply()` to work on the entire table of data.
+
+```{r}
+sumcomma <- function(x) {
+  sum(as.numeric(gsub(",","",x)))
+}
+
+sumcomma(stats$X.ray)
+```
+
+```{r}
+n.total <- sumcomma(stats$Total)
+n.total
+```
+
+```{r}
+sumcomma(stats$EM)
+```
+
+```{r}
+apply(stats, 2, sumcomma)
+```
+
+```{r}
+apply(stats, 2, sumcomma) / sumcomma(stats$Total)
+```
+
+```{r}
+as.numeric(c(10, "10,000"))
+```
+
+```{r}
+(184362/219140)*100
+```
+About 84% solved by X-ray.
+
+```{r}
+(20191/219140)*100
+```
+About 9% solved by EM.
+
+
+
+> Q2: What proportion of structures in the PDB are protein?
+
+248,805,733 - 186,898
+```{r}
+186898/248805733 * 100
+```
+
+
+# Visualizing the HIV-1 protease structure
+
+Mol* ("mol-star") viewer is now everywhere. The homepage is here:
+https://molstar.org/viewer/
+
+I want to insert my image from Mol* here.
+
+![My first molecular image](1HSG.png)
+
+This image highlights an important water molecule and ASP25 on both chains by changing them into spacefill
+![My second molecular image](1HSG (1).png)
+
+## Working with bio3d package
+
+```{r}
+library(bio3d)
+```
+
+```{r}
+pdb <- read.pdb("1hsg")
+pdb
+```
+
+```{r}
+head(pdb$atom)
+```
+
+```{r}
+pdbseq(pdb)[25]
+```
+
+## Predicting functional motions of a single structure
+
+We can do a bioinformatics prediction of functional motions (i.e. flexibility/dynamics):
+
+```{r}
+pdb <- read.pdb("6s36")
+pdb
+```
+
+```{r}
+m <- nma(pdb)
+plot(m)
+```
+
+```{r}
+mktrj(m, file="adk_m7.pdb")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
